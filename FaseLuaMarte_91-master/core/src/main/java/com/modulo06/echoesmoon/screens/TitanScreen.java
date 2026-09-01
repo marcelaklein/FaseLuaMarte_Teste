@@ -17,9 +17,8 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
-import com.modulo06.echoesmoon.utils.QuestTracker;
 
-public class GameScreen implements Screen {
+public class TitanScreen implements Screen {
 
     private Game game;
     private OrthographicCamera camera;
@@ -27,37 +26,31 @@ public class GameScreen implements Screen {
     private ShapeRenderer shapeRenderer;
     private BitmapFont font;
 
-    private Texture playerTex, playerGunTex, enemyTex, fragmentTex, bgTex, benchTex, guideTex;
+    private Texture playerTex, enemyTex, partTex, bgTex, scientistTex, ammoTex;
 
     private final float WORLD_WIDTH = 2000f;
     private final float WORLD_HEIGHT = 2000f;
 
     private Rectangle player;
-    private Rectangle workbench;
-    private Rectangle guide; // Bloco/Personagem Guia na Lua
-    private Rectangle portalMars;
+    private Rectangle scientist;
+    private Rectangle portalMoon;
     private float playerSpeed = 300f;
 
     private float o2 = 100f;
     private float energy = 100f;
-    private int crystalsCollected = 0;
-    private final int TOTAL_CRYSTALS = 4;
-    private boolean hasGun = false;
 
-    private int ammo = 10;
+    private int partsCollected = 0;
+    private final int TOTAL_PARTS = 4;
+    private boolean portalCreated = false;
+
+    private int ammo = 15;
     private int maxAmmo = 30;
     private float attackCooldown = 0f;
-    private final float COOLDOWN_TIME = 0.5f;
+    private final float COOLDOWN_TIME = 0.4f;
 
     public enum DialogState { CLOSED, OPEN, FINISHED }
     private DialogState dialogState = DialogState.CLOSED;
-
-    // Diálogo inicial do Guia na Lua
-    private String[] dialogLines = {
-        "GUIA: Bem-vindo à Base da Lua, soldado!",
-        "GUIA: Colete os 4 fragmentos espalhados pelo mapa e leve-os até a bancada.",
-        "GUIA: Precisamos deles para construir sua arma e liberar o portal para Marte!"
-    };
+    private String[] dialogLines;
     private int dialogIndex = 0;
 
     class Bullet {
@@ -75,11 +68,22 @@ public class GameScreen implements Screen {
         }
     }
 
-    class Fragment {
+    class Part {
         Rectangle rect;
         boolean collected = false;
-        public Fragment(float x, float y) {
+        public Part(float x, float y) {
             this.rect = new Rectangle(x, y, 40, 40);
+        }
+    }
+
+    class AmmoPickup {
+        Rectangle rect;
+        int amount;
+        boolean collected = false;
+
+        public AmmoPickup(float x, float y, int amount) {
+            this.rect = new Rectangle(x, y, 40, 40);
+            this.amount = amount;
         }
     }
 
@@ -91,20 +95,21 @@ public class GameScreen implements Screen {
         EnemyType type;
         Vector2 patrolA, patrolB;
         boolean movingToB = true;
-        int health = 2;
+        int health;
 
-        public Enemy(float x, float y, EnemyType type, Vector2 patrolB, float speed) {
+        public Enemy(float x, float y, EnemyType type, Vector2 patrolB, int health, float speed) {
             this.rect = new Rectangle(x, y, 64, 64);
             this.type = type;
             this.patrolA = new Vector2(x, y);
             this.patrolB = patrolB != null ? patrolB : new Vector2(x + 200, y);
+            this.health = health;
             this.speed = speed;
         }
 
         public void update(float delta, Vector2 playerPos) {
             if (type == EnemyType.CHASER) {
                 float dist = playerPos.dst(rect.x, rect.y);
-                if (dist < 500f) {
+                if (dist < 600f) {
                     Vector2 dir = new Vector2(playerPos.x - rect.x, playerPos.y - rect.y).nor();
                     rect.x += dir.x * speed * delta;
                     rect.y += dir.y * speed * delta;
@@ -122,13 +127,13 @@ public class GameScreen implements Screen {
         }
     }
 
-    private Array<Fragment> fragments;
+    private Array<Part> parts;
     private Array<Enemy> enemies;
     private Array<Bullet> bullets;
+    private Array<AmmoPickup> ammoPickups;
 
-    public GameScreen(Game game, int startingCrystals) {
+    public TitanScreen(Game game) {
         this.game = game;
-        this.crystalsCollected = startingCrystals;
 
         camera = new OrthographicCamera();
         camera.setToOrtho(false, 800, 600);
@@ -137,38 +142,43 @@ public class GameScreen implements Screen {
         font = new BitmapFont();
 
         player = new Rectangle(200, 200, 64, 96);
-        guide = new Rectangle(150, 200, 64, 96); // Posicionado perto da base
-        workbench = new Rectangle(300, 200, 80, 80);
-        portalMars = new Rectangle(1800, 1800, 120, 120);
+        scientist = new Rectangle(300, 200, 64, 96);
+        portalMoon = new Rectangle(1800, 1800, 120, 120);
 
-        fragments = new Array<>();
+        parts = new Array<>();
         enemies = new Array<>();
         bullets = new Array<>();
+        ammoPickups = new Array<>();
 
-        fragments.add(new Fragment(500, 500));
-        fragments.add(new Fragment(1500, 400));
-        fragments.add(new Fragment(800, 1600));
-        fragments.add(new Fragment(1600, 1500));
+        parts.add(new Part(500, 400));
+        parts.add(new Part(1300, 300));
+        parts.add(new Part(700, 1400));
+        parts.add(new Part(1600, 1200));
 
-        enemies.add(new Enemy(600, 400, EnemyType.PATROL, new Vector2(1000, 400), 100f));
-        enemies.add(new Enemy(1200, 1000, EnemyType.CHASER, null, 120f));
-        enemies.add(new Enemy(400, 1400, EnemyType.PATROL, new Vector2(400, 1800), 110f));
+        ammoPickups.add(new AmmoPickup(400, 600, 10));
+        ammoPickups.add(new AmmoPickup(1200, 900, 10));
+
+        enemies.add(new Enemy(600, 600, EnemyType.CHASER, null, 3, 130f));
+        enemies.add(new Enemy(1400, 500, EnemyType.PATROL, new Vector2(1700, 500), 3, 120f));
+        enemies.add(new Enemy(1000, 1300, EnemyType.CHASER, null, 3, 140f));
 
         loadGame();
 
-        playerTex = safeLoadTexture("player.png");
-        playerGunTex = safeLoadTexture("player_gun.png");
-        benchTex = safeLoadTexture("bancada.png");
-        guideTex = safeLoadTexture("cientista.png"); // Textura opcional para o guia
-        bgTex = safeLoadTexture("fundo_lua.png");
-        fragmentTex = safeLoadTexture("fragmento.png");
-        enemyTex = safeLoadTexture("alien_lua.png");
+        playerTex = safeLoadTexture("player_gun.png");
+        scientistTex = safeLoadTexture("cientista.png");
+        bgTex = safeLoadTexture("fundo_tita.png");
+        partTex = safeLoadTexture("peca.png");
+        enemyTex = safeLoadTexture("alien_tita.png");
+        ammoTex = safeLoadTexture("ammo.png");
 
-        // Dispara o diálogo do guia automaticamente ao iniciar a fase pela primeira vez
-        if (!hasGun && crystalsCollected == 0) {
-            dialogIndex = 0;
-            dialogState = DialogState.OPEN;
-        }
+        // Diálogo inicial acionado automaticamente ao entrar na tela
+        dialogLines = new String[]{
+            "CIENTISTA: Opa...",
+            "CIENTISTA: Parece que o portal que criei estava com coordenadas erradas.",
+            "CIENTISTA: Colete alguns itens espalhados para que eu possa criar outro portal."
+        };
+        dialogIndex = 0;
+        dialogState = DialogState.OPEN;
     }
 
     private Texture safeLoadTexture(String path) {
@@ -182,8 +192,7 @@ public class GameScreen implements Screen {
         Preferences prefs = Gdx.app.getPreferences("EchoesMoonSave");
         this.o2 = prefs.getFloat("o2", 100f);
         this.energy = prefs.getFloat("energy", 100f);
-        this.ammo = prefs.getInteger("ammo", 10);
-        this.hasGun = prefs.getBoolean("hasGun", false);
+        this.ammo = prefs.getInteger("ammo", 15);
     }
 
     private void saveGame() {
@@ -191,8 +200,7 @@ public class GameScreen implements Screen {
         prefs.putFloat("o2", o2);
         prefs.putFloat("energy", energy);
         prefs.putInteger("ammo", ammo);
-        prefs.putBoolean("hasGun", hasGun);
-        prefs.putString("currentStage", "LUA");
+        prefs.putString("currentStage", "TITAN");
         prefs.flush();
     }
 
@@ -200,7 +208,7 @@ public class GameScreen implements Screen {
     public void render(float delta) {
         update(delta);
 
-        Gdx.gl.glClearColor(0.05f, 0.05f, 0.1f, 1);
+        Gdx.gl.glClearColor(0.1f, 0.05f, 0.2f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         camera.update();
 
@@ -212,24 +220,23 @@ public class GameScreen implements Screen {
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
-        // Portal para Marte
-        if (crystalsCollected >= TOTAL_CRYSTALS && hasGun) {
-            shapeRenderer.setColor(Color.RED);
+        if (portalCreated) {
+            shapeRenderer.setColor(Color.GREEN);
         } else {
             shapeRenderer.setColor(Color.GRAY);
         }
-        shapeRenderer.rect(portalMars.x, portalMars.y, portalMars.width, portalMars.height);
+        shapeRenderer.rect(portalMoon.x, portalMoon.y, portalMoon.width, portalMoon.height);
 
-        // Bancada (caso não tenha textura)
-        if (benchTex == null) {
-            shapeRenderer.setColor(Color.YELLOW);
-            shapeRenderer.rect(workbench.x, workbench.y, workbench.width, workbench.height);
+        if (scientistTex == null) {
+            shapeRenderer.setColor(Color.GREEN);
+            shapeRenderer.rect(scientist.x, scientist.y, scientist.width, scientist.height);
         }
 
-        // Guia / NPC em forma de bloco (caso não tenha textura)
-        if (guideTex == null) {
-            shapeRenderer.setColor(Color.MAGENTA); // Bloco visível do Guia
-            shapeRenderer.rect(guide.x, guide.y, guide.width, guide.height);
+        shapeRenderer.setColor(Color.ORANGE);
+        for (AmmoPickup a : ammoPickups) {
+            if (!a.collected && ammoTex == null) {
+                shapeRenderer.rect(a.rect.x, a.rect.y, a.rect.width, a.rect.height);
+            }
         }
 
         shapeRenderer.setColor(Color.PURPLE);
@@ -244,10 +251,10 @@ public class GameScreen implements Screen {
             shapeRenderer.rect(player.x, player.y, player.width, player.height);
         }
 
-        shapeRenderer.setColor(Color.GREEN);
-        for (Fragment f : fragments) {
-            if (!f.collected && fragmentTex == null) {
-                shapeRenderer.rect(f.rect.x, f.rect.y, f.rect.width, f.rect.height);
+        shapeRenderer.setColor(Color.WHITE);
+        for (Part p : parts) {
+            if (!p.collected && partTex == null) {
+                shapeRenderer.rect(p.rect.x, p.rect.y, p.rect.width, p.rect.height);
             }
         }
 
@@ -261,55 +268,43 @@ public class GameScreen implements Screen {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
 
-        if (benchTex != null) {
-            batch.draw(benchTex, workbench.x, workbench.y, workbench.width, workbench.height);
-        }
-        font.draw(batch, "BANCADA [E]", workbench.x - 5, workbench.y + workbench.height + 15);
+        if (scientistTex != null) batch.draw(scientistTex, scientist.x, scientist.y, scientist.width, scientist.height);
+        font.draw(batch, "CIENTISTA [E]", scientist.x - 5, scientist.y + scientist.height + 15);
 
-        // Desenha o Guia (textura ou indicador)
-        if (guideTex != null) {
-            batch.draw(guideTex, guide.x, guide.y, guide.width, guide.height);
-        }
-        font.draw(batch, "GUIA [E]", guide.x - 5, guide.y + guide.height + 15);
-
-        if (crystalsCollected >= TOTAL_CRYSTALS && hasGun) {
-            font.draw(batch, "PORTAL PARA MARTE [LIBERADO]", portalMars.x - 20, portalMars.y - 10);
+        if (portalCreated) {
+            font.draw(batch, "PORTAL PARA LUA [LIBERADO]", portalMoon.x - 20, portalMoon.y - 10);
         } else {
-            font.draw(batch, "PORTAL BLOQUEADO", portalMars.x - 5, portalMars.y - 10);
-            font.draw(batch, "(Requer: 4 Fragmentos + Arma)", portalMars.x - 25, portalMars.y - 30);
+            font.draw(batch, "PORTAL EM CONSTRUÇÃO", portalMoon.x - 15, portalMoon.y - 10);
+            font.draw(batch, "(Entregue as pecas ao Cientista)", portalMoon.x - 30, portalMoon.y - 30);
         }
 
-        Texture currentTex = hasGun ? playerGunTex : playerTex;
-        if (currentTex != null) {
-            batch.draw(currentTex, player.x, player.y, player.width, player.height);
+        for (AmmoPickup a : ammoPickups) {
+            if (!a.collected && ammoTex != null) {
+                batch.draw(ammoTex, a.rect.x, a.rect.y, a.rect.width, a.rect.height);
+            }
         }
 
         for (Enemy e : enemies) {
             if (enemyTex != null) batch.draw(enemyTex, e.rect.x, e.rect.y, e.rect.width, e.rect.height);
         }
 
-        for (Fragment f : fragments) {
-            if (!f.collected && fragmentTex != null) {
-                batch.draw(fragmentTex, f.rect.x, f.rect.y, f.rect.width, f.rect.height);
+        for (Part p : parts) {
+            if (!p.collected && partTex != null) {
+                batch.draw(partTex, p.rect.x, p.rect.y, p.rect.width, p.rect.height);
             }
+        }
+
+        if (playerTex != null) {
+            batch.draw(playerTex, player.x, player.y, player.width, player.height);
         }
 
         batch.end();
 
-        // HUD e Quest Tracker
         batch.getProjectionMatrix().setToOrtho2D(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         batch.begin();
         font.setColor(Color.WHITE);
-        font.draw(batch, "FASE: LUA | O2: " + (int)o2 + "% | Energia: " + (int)energy + "% | Municao: " + ammo + "/" + maxAmmo, 20, Gdx.graphics.getHeight() - 20);
-        font.draw(batch, "Fragmentos Coletados: " + crystalsCollected + "/" + TOTAL_CRYSTALS, 20, Gdx.graphics.getHeight() - 40);
-
-        String currentObjective = !QuestTracker.getInstance().isWeaponBuilt() ?
-            "Objetivo: Colete 4 Fragmentos e use a Bancada." :
-            "Objetivo: Entre no Portal para Marte.";
-        font.setColor(Color.YELLOW);
-        font.draw(batch, currentObjective, 20, Gdx.graphics.getHeight() - 65);
-        font.setColor(Color.WHITE);
-
+        font.draw(batch, "FASE: TITÃ | O2: " + (int)o2 + "% | Energia: " + (int)energy + "% | Municao: " + ammo + "/" + maxAmmo, 20, Gdx.graphics.getHeight() - 20);
+        font.draw(batch, "Pecas de Portal Coletadas: " + partsCollected + "/" + TOTAL_PARTS, 20, Gdx.graphics.getHeight() - 40);
         batch.end();
 
         if (dialogState == DialogState.OPEN) {
@@ -329,7 +324,9 @@ public class GameScreen implements Screen {
         batch.getProjectionMatrix().setToOrtho2D(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         batch.begin();
         font.setColor(Color.WHITE);
-        font.draw(batch, dialogLines[dialogIndex], 70, 110);
+        if (dialogLines != null && dialogIndex < dialogLines.length) {
+            font.draw(batch, dialogLines[dialogIndex], 70, 110);
+        }
         font.setColor(Color.YELLOW);
         font.draw(batch, "[Pressione ESPACO para continuar]", Gdx.graphics.getWidth() - 320, 45);
         font.setColor(Color.WHITE);
@@ -345,7 +342,9 @@ public class GameScreen implements Screen {
         if (dialogState == DialogState.OPEN) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
                 dialogIndex++;
-                if (dialogIndex >= dialogLines.length) dialogState = DialogState.FINISHED;
+                if (dialogLines == null || dialogIndex >= dialogLines.length) {
+                    dialogState = DialogState.FINISHED;
+                }
             }
             return;
         }
@@ -355,49 +354,31 @@ public class GameScreen implements Screen {
             dialogState = DialogState.CLOSED;
         }
 
-        // Interação com o Guia ao apertar [E]
-        if (player.overlaps(guide) && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
-            dialogLines = new String[]{
-                "GUIA: Lembre-se: explore o mapa e colete os 4 fragmentos.",
-                "GUIA: Traga-os para a bancada logo ao lado para criarmos sua arma."
-            };
-            dialogIndex = 0;
-            dialogState = DialogState.OPEN;
-            return;
-        }
-
-        // Interação com a Bancada (Restaura 100% de O2 e Energia)
-        if (player.overlaps(workbench) && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
-            if (crystalsCollected >= TOTAL_CRYSTALS) {
-                hasGun = true;
-                QuestTracker.getInstance().setWeaponBuilt(true);
+        // Interação manual com o Cientista para entrega das peças
+        if (player.overlaps(scientist) && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
+            if (partsCollected >= TOTAL_PARTS) {
+                portalCreated = true;
                 dialogLines = new String[]{
-                    "BANCADA: Arma construída com sucesso!",
-                    "BANCADA: Suprimentos totalmente restaurados na base."
+                    "CIENTISTA: Excelente! Você trouxe todas as 4 peças!",
+                    "CIENTISTA: Consegui calibrar e ativar o portal final.",
+                    "CIENTISTA: O Portal para a Lua está pronto. Vamos nessa!"
                 };
             } else {
-                int faltando = TOTAL_CRYSTALS - crystalsCollected;
+                int faltando = TOTAL_PARTS - partsCollected;
                 dialogLines = new String[]{
-                    "BANCADA: Base da Lua - Suprimentos recarregados!",
-                    "BANCADA: Faltam " + faltando + " fragmentos para fabricar a arma."
+                    "CIENTISTA: Você coletou " + partsCollected + "/" + TOTAL_PARTS + " peças.",
+                    "CIENTISTA: Ainda precisamos de mais " + faltando + " peças espalhadas por Titã para abrir o portal de volta."
                 };
             }
-            o2 = 100f;
-            energy = 100f;
-
             dialogIndex = 0;
             dialogState = DialogState.OPEN;
-            saveGame();
             return;
         }
 
-        // Portal para Marte (Reduz O2 e Energia para 40%)
-        if (player.overlaps(portalMars)) {
-            if (crystalsCollected >= TOTAL_CRYSTALS && hasGun) {
-                o2 = o2 * 0.4f;
-                energy = energy * 0.4f;
+        if (player.overlaps(portalMoon)) {
+            if (portalCreated) {
                 saveGame();
-                game.setScreen(new MarsScreen(game));
+                game.setScreen(new GameScreen(game, 4));
                 return;
             }
         }
@@ -419,19 +400,35 @@ public class GameScreen implements Screen {
             MathUtils.clamp(player.y, camera.viewportHeight / 2f, WORLD_HEIGHT - camera.viewportHeight / 2f), 0
         );
 
-        o2 -= 1.0f * delta;
-        energy -= 0.8f * delta;
+        o2 -= 1.2f * delta;
+        energy -= 1.0f * delta;
+
+        for (AmmoPickup a : ammoPickups) {
+            if (!a.collected && player.overlaps(a.rect)) {
+                a.collected = true;
+                ammo = Math.min(maxAmmo, ammo + a.amount);
+                saveGame();
+            }
+        }
+
+        for (Part p : parts) {
+            if (!p.collected && player.overlaps(p.rect)) {
+                p.collected = true;
+                partsCollected++;
+                saveGame();
+            }
+        }
 
         Vector2 playerPos = new Vector2(player.x, player.y);
         for (Enemy e : enemies) {
             e.update(delta, playerPos);
             if (player.overlaps(e.rect)) {
-                o2 -= 10f * delta;
-                energy -= 10f * delta;
+                o2 -= 12f * delta;
+                energy -= 12f * delta;
             }
         }
 
-        if (hasGun && Gdx.input.isButtonPressed(Input.Buttons.LEFT) && attackCooldown <= 0 && ammo > 0) {
+        if (Gdx.input.isButtonPressed(Input.Buttons.LEFT) && attackCooldown <= 0 && ammo > 0) {
             ammo--;
             attackCooldown = COOLDOWN_TIME;
 
@@ -466,13 +463,6 @@ public class GameScreen implements Screen {
                 }
             }
         }
-
-        for (Fragment f : fragments) {
-            if (!f.collected && player.overlaps(f.rect)) {
-                f.collected = true;
-                crystalsCollected++;
-            }
-        }
     }
 
     @Override public void show() {} @Override public void resize(int w, int h) {}
@@ -482,11 +472,10 @@ public class GameScreen implements Screen {
     public void dispose() {
         batch.dispose(); shapeRenderer.dispose(); font.dispose();
         if (playerTex != null) playerTex.dispose();
-        if (playerGunTex != null) playerGunTex.dispose();
-        if (benchTex != null) benchTex.dispose();
-        if (guideTex != null) guideTex.dispose();
+        if (scientistTex != null) scientistTex.dispose();
         if (enemyTex != null) enemyTex.dispose();
-        if (fragmentTex != null) fragmentTex.dispose();
+        if (partTex != null) partTex.dispose();
         if (bgTex != null) bgTex.dispose();
+        if (ammoTex != null) ammoTex.dispose();
     }
 }
