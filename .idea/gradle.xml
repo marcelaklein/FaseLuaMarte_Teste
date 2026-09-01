@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GradleSettings">
+    <option name="linkedExternalProjectsSettings">
+      <GradleProjectSettings>
+        <option name="externalProjectPath" value="$PROJECT_DIR$/FaseLuaMarte_91-master" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$/FaseLuaMarte_91-master" />
+            <option value="$PROJECT_DIR$/FaseLuaMarte_91-master/core" />
+            <option value="$PROJECT_DIR$/FaseLuaMarte_91-master/lwjgl3" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+    </option>
+  </component>
+</project>
