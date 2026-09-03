@@ -34,7 +34,7 @@ public class GameScreen implements Screen {
 
     private Rectangle player;
     private Rectangle workbench;
-    private Rectangle guide; // Bloco/Personagem Guia na Lua
+    private Rectangle guide;
     private Rectangle portalMars;
     private float playerSpeed = 300f;
 
@@ -52,7 +52,6 @@ public class GameScreen implements Screen {
     public enum DialogState { CLOSED, OPEN, FINISHED }
     private DialogState dialogState = DialogState.CLOSED;
 
-    // Diálogo inicial do Guia na Lua
     private String[] dialogLines = {
         "GUIA: Bem-vindo à Base da Lua, soldado!",
         "GUIA: Colete os 4 fragmentos espalhados pelo mapa e leve-os até a bancada.",
@@ -137,7 +136,7 @@ public class GameScreen implements Screen {
         font = new BitmapFont();
 
         player = new Rectangle(200, 200, 64, 96);
-        guide = new Rectangle(150, 200, 64, 96); // Posicionado perto da base
+        guide = new Rectangle(150, 200, 64, 96);
         workbench = new Rectangle(300, 200, 80, 80);
         portalMars = new Rectangle(1800, 1800, 120, 120);
 
@@ -159,12 +158,11 @@ public class GameScreen implements Screen {
         playerTex = safeLoadTexture("player.png");
         playerGunTex = safeLoadTexture("player_gun.png");
         benchTex = safeLoadTexture("bancada.png");
-        guideTex = safeLoadTexture("cientista.png"); // Textura opcional para o guia
+        guideTex = safeLoadTexture("cientista.png");
         bgTex = safeLoadTexture("fundo_lua.png");
         fragmentTex = safeLoadTexture("fragmento.png");
         enemyTex = safeLoadTexture("alien_lua.png");
 
-        // Dispara o diálogo do guia automaticamente ao iniciar a fase pela primeira vez
         if (!hasGun && crystalsCollected == 0) {
             dialogIndex = 0;
             dialogState = DialogState.OPEN;
@@ -212,7 +210,6 @@ public class GameScreen implements Screen {
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
-        // Portal para Marte
         if (crystalsCollected >= TOTAL_CRYSTALS && hasGun) {
             shapeRenderer.setColor(Color.RED);
         } else {
@@ -220,15 +217,13 @@ public class GameScreen implements Screen {
         }
         shapeRenderer.rect(portalMars.x, portalMars.y, portalMars.width, portalMars.height);
 
-        // Bancada (caso não tenha textura)
         if (benchTex == null) {
             shapeRenderer.setColor(Color.YELLOW);
             shapeRenderer.rect(workbench.x, workbench.y, workbench.width, workbench.height);
         }
 
-        // Guia / NPC em forma de bloco (caso não tenha textura)
         if (guideTex == null) {
-            shapeRenderer.setColor(Color.MAGENTA); // Bloco visível do Guia
+            shapeRenderer.setColor(Color.MAGENTA);
             shapeRenderer.rect(guide.x, guide.y, guide.width, guide.height);
         }
 
@@ -266,7 +261,6 @@ public class GameScreen implements Screen {
         }
         font.draw(batch, "BANCADA [E]", workbench.x - 5, workbench.y + workbench.height + 15);
 
-        // Desenha o Guia (textura ou indicador)
         if (guideTex != null) {
             batch.draw(guideTex, guide.x, guide.y, guide.width, guide.height);
         }
@@ -296,7 +290,6 @@ public class GameScreen implements Screen {
 
         batch.end();
 
-        // HUD e Quest Tracker
         batch.getProjectionMatrix().setToOrtho2D(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         batch.begin();
         font.setColor(Color.WHITE);
@@ -355,7 +348,6 @@ public class GameScreen implements Screen {
             dialogState = DialogState.CLOSED;
         }
 
-        // Interação com o Guia ao apertar [E]
         if (player.overlaps(guide) && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
             dialogLines = new String[]{
                 "GUIA: Lembre-se: explore o mapa e colete os 4 fragmentos.",
@@ -366,7 +358,6 @@ public class GameScreen implements Screen {
             return;
         }
 
-        // Interação com a Bancada (Restaura 100% de O2 e Energia)
         if (player.overlaps(workbench) && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
             if (crystalsCollected >= TOTAL_CRYSTALS) {
                 hasGun = true;
@@ -391,10 +382,10 @@ public class GameScreen implements Screen {
             return;
         }
 
-        // Portal para Marte (Reduz O2 e Energia para 40%)
+        // Portal para Marte (Mantém O2 em 100%)
         if (player.overlaps(portalMars)) {
             if (crystalsCollected >= TOTAL_CRYSTALS && hasGun) {
-                o2 = o2 * 0.4f;
+                o2 = 100f;
                 energy = energy * 0.4f;
                 saveGame();
                 game.setScreen(new MarsScreen(game));

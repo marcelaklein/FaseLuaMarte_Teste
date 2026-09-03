@@ -151,7 +151,6 @@ public class MarsScreen implements Screen {
         player = new Rectangle(200, 200, 64, 96);
         scientist = new Rectangle(320, 200, 64, 96);
 
-        // Portal posicionado logo atrás do cientista (ex: logo acima dele)
         portalTitan = new Rectangle(320, 320, 120, 120);
 
         crystals = new Array<>();
@@ -363,7 +362,6 @@ public class MarsScreen implements Screen {
             dialogState = DialogState.CLOSED;
         }
 
-        // Interação manual com o cientista
         if (player.overlaps(scientist) && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
             if (crystalsCollected >= TOTAL_CRYSTALS) {
                 dialogLines = new String[]{
@@ -382,7 +380,6 @@ public class MarsScreen implements Screen {
             return;
         }
 
-        // Se coletou todos os cristais pela primeira vez, dispara o aviso automático do cientista
         if (crystalsCollected >= TOTAL_CRYSTALS && !crystalsCompletedDialogShown) {
             crystalsCompletedDialogShown = true;
             dialogLines = new String[]{
@@ -394,10 +391,10 @@ public class MarsScreen implements Screen {
             saveGame();
         }
 
-        // Entrar no portal para Titã
+        // Entrar no portal para Titã (Mantém O2 em 100%)
         if (player.overlaps(portalTitan)) {
             if (crystalsCollected >= TOTAL_CRYSTALS) {
-                o2 = o2 * 0.4f;
+                o2 = 100f;
                 energy = energy * 0.4f;
                 saveGame();
                 game.setScreen(new TitanScreen(game));
